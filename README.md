@@ -20,6 +20,11 @@ Este repositorio es la entrega de la Evaluación Parcial N°2 del curso de Gesti
 - Reparto general: 50% Simon y 50% Benja.
 - Ambos revisaron las partes principales para mantener coherencia técnica y de presentación.
 
+## Ramas del proyecto
+- `main` — versión integrada final con todo el proyecto junto.
+- `Simon` / `simon` — rama enfocada en la parte técnica del pipeline y la demo.
+- `Benja` / `benja` — rama enfocada en documentación, organización y presentación.
+
 ## Contenido y estructura
 - `src/` — implementaciones del pipeline:
   - `ingestion.py` — ingesta (descarga dataset de ejemplo y guarda en `data/raw`).
