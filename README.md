@@ -62,6 +62,8 @@ pip install -r requirements.txt
 python -m src.pipeline
 ```
 
+Nota: Si vas a usar una base remota (por ejemplo Supabase/Postgres), crea un archivo `.env` en la raíz con `DATABASE_URL` o `SUPABASE_URL`/`SUPABASE_KEY`. Si no existe, el pipeline creará/actualizará una base SQLite local en `data/db/titanic.db`.
+
 5. Levantar la demo:
 ```powershell
 python app.py
