@@ -5,5 +5,5 @@ seaborn
 python-dotenv
 gunicorn
 psycopg2-binary
-supabase
 requests
+pytest

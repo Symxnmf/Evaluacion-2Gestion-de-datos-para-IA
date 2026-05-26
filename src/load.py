@@ -67,9 +67,28 @@ def load_to_database(processed_path="data/processed/titanic_clean.csv"):
 
         LOG.info("Subiendo %d filas a Supabase REST %s", len(df), rest_endpoint)
 
+        # Renombrar columnas al español antes de enviar
+        column_mapping = {
+            'survived': 'sobrevivio',
+            'pclass': 'clase',
+            'sex': 'sexo',
+            'age': 'edad',
+            'sibsp': 'hermanos_conyuge',
+            'parch': 'padres_hijos',
+            'fare': 'tarifa',
+            'embarked': 'puerto_embarque',
+            'who': 'quien',
+            'adult_male': 'adulto_hombre',
+            'embark_town': 'ciudad_puerto',
+            'alone': 'solo_a',
+            'class': 'categoria'
+        }
+        
+        df_renamed = df.rename(columns=column_mapping)
+
         # Post in chunks to avoid huge payloads
         # Replace NaN/inf with None and convert numpy types to native Python types
-        df_clean = df.replace([np.nan, np.inf, -np.inf], None)
+        df_clean = df_renamed.replace([np.nan, np.inf, -np.inf], None)
         records_raw = df_clean.to_dict(orient='records')
 
         def _convert_record(rec):
