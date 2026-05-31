@@ -6,9 +6,12 @@ import requests
 
 app = Flask(__name__)
 load_dotenv()
-# Prefer DATABASE_URL (Postgres) if present, else fall back to local sqlite path
+# Selección de la base de datos:
+# - Si está definida `DATABASE_URL`, se usa como URL remota (Postgres).
+# - En caso contrario, se toma `DB_PATH` o `LOCAL_SQLITE_DB` y se usa SQLite local.
 DB_PATH = os.environ.get("DATABASE_URL") or os.environ.get("DB_PATH", os.environ.get("LOCAL_SQLITE_DB", "data/db/titanic.db"))
-# Supabase REST config (read at startup)
+# Configuración opcional para Supabase (REST). Si están definidas, la app
+# puede consultar/insertar directamente vía REST.
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 logging.basicConfig(level=logging.INFO)
@@ -16,15 +19,16 @@ LOG = logging.getLogger("app")
 
 
 def query_db_sqlalchemy(query):
-    """Run a SQL query using SQLAlchemy engine pointed at DATABASE_URL.
+    """Ejecuta una consulta SQL usando SQLAlchemy apuntando a `DB_PATH`.
 
-    Returns list of rows (tuples).
+    Retorna una lista de filas (tuplas).
     """
     from sqlalchemy import create_engine, text
-    # Normalize postgres URL if necessary
+    # Normalizar URL de Postgres si el proveedor devuelve 'postgres://'
     url = DB_PATH
     if isinstance(url, str) and url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+    # Crear engine y ejecutar la consulta
     engine = create_engine(url)
     with engine.connect() as conn:
         res = conn.execute(text(query))
@@ -32,6 +36,7 @@ def query_db_sqlalchemy(query):
 
 
 def query_db_sqlite(query):
+    # Ejecuta una consulta directa en SQLite local (archivo en `DB_PATH`).
     import sqlite3
     if not os.path.exists(DB_PATH):
         return None
@@ -44,8 +49,11 @@ def query_db_sqlite(query):
 
 
 def query_db_supabase():
-    """Fetch all rows from Supabase REST for table `titanic` as list of dicts."""
-    # Ensure .env is loaded in case process was started before .env changes
+    """Consulta la tabla `titanic` vía Supabase REST y retorna lista de dicts.
+
+    Retorna `None` si no hay configuración o si ocurre un error.
+    """
+    # Asegurar que las variables de entorno estén cargadas
     load_dotenv()
     supabase_url = os.environ.get('SUPABASE_URL')
     supabase_key = os.environ.get('SUPABASE_KEY')
@@ -64,7 +72,6 @@ def query_db_supabase():
         'User-Agent': 'server-client/1.0'
     }
     try:
-        LOG.info("Supabase URL: %s, key present: %s", supabase_url, bool(supabase_key))
         LOG.info("Consultando Supabase REST en %s", rest_endpoint + '?select=*')
         resp = requests.get(rest_endpoint + '?select=*', headers=headers, timeout=30)
         LOG.info("Respuesta Supabase: %s", getattr(resp, 'status_code', None))
@@ -78,22 +85,23 @@ def query_db_supabase():
 
 
 def query_db(query):
-    # If DB_PATH is a URL (starts with postgres:// or postgresql://), use SQLAlchemy
+    # Si `DB_PATH` apunta a Postgres, usar SQLAlchemy
     if isinstance(DB_PATH, str) and DB_PATH.startswith("postgres"):
         try:
             return query_db_sqlalchemy(query)
         except Exception as e:
             LOG.exception("Error consultando la base remota: %s", e)
             return None
-    # If Supabase REST is configured via environment, do not use SQL string queries here
+    # Si Supabase REST está configurado, las consultas SQL directas no se usan
     if os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_KEY'):
-        LOG.debug("query_db called but Supabase REST is configured; use specific supabase functions instead.")
+        LOG.debug("Supabase REST configurado: evitar consultas SQL directas desde aquí.")
         return None
+    # Fallback a SQLite local
     return query_db_sqlite(query)
 
 @app.route("/kpis")
 def kpis():
-    # If Supabase REST configured, fetch rows and compute KPIs in Python
+    # Si Supabase REST está configurado, obtener filas vía REST y calcular KPIs en Python
     if os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_KEY'):
         rows = query_db_supabase()
         if not rows:
@@ -103,7 +111,7 @@ def kpis():
         missing_age = sum(1 for r in rows if r.get('age') is None)
         avg_age = float(sum(ages) / len(ages)) if ages else None
         surv_vals = [r.get('survived') for r in rows if r.get('survived') is not None]
-        # Convert possible string booleans or ints
+        # Normalizar valores de supervivencia (pueden venir como '1','0','true','false')
         surv_nums = []
         for v in surv_vals:
             try:
@@ -121,7 +129,7 @@ def kpis():
             "tasa_supervivencia": survival_rate
         })
 
-    # Fallback to SQL queries (SQLite or SQLAlchemy)
+    # Si no hay Supabase, usar consultas SQL (SQLite o Postgres vía SQLAlchemy)
     rows = query_db("SELECT COUNT(*) FROM titanic")
     if not rows:
         return jsonify({"error": "BD no encontrada o error al consultar. Ejecuta primero el pipeline."}), 404
@@ -138,6 +146,7 @@ def kpis():
 
 @app.route("/")
 def index():
+    # HTML embebido: formulario envía POST a `/insert` y enlaces a `/kpis` y `/status`
     html = """
     <!DOCTYPE html>
     <html>
@@ -297,6 +306,7 @@ def index():
 @app.route("/insert", methods=["POST"])
 def insert():
     try:
+        # Esta ruta inserta un nuevo registro en Supabase REST.
         if not SUPABASE_URL or not SUPABASE_KEY:
             return jsonify({"error": "Supabase no configurado"}), 400
         
@@ -312,6 +322,7 @@ def insert():
         sex_value = request.form.get("sex")
         who_value = request.form.get("who")
 
+        # Construir el registro en el esquema que espera la tabla en Supabase
         record = {
             "sobrevivio": int(request.form.get("survived")),
             "clase": pclass_num,
@@ -340,6 +351,7 @@ def insert():
             'Content-Type': 'application/json',
         }
         
+        # Enviar un arreglo con un solo registro al endpoint REST de Supabase
         resp = requests.post(rest_endpoint, json=[record], headers=headers, timeout=10)
         
         if not resp.ok:
@@ -357,8 +369,8 @@ def insert():
 @app.route("/status")
 def status():
     # Report availability depending on configured backend
+    # Reportar disponibilidad según backend configurado
     if os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_KEY'):
-        # simple health check on Supabase table
         rows = query_db_supabase()
         return jsonify({"bd_existe": bool(rows)})
     exists = os.path.exists(DB_PATH)

@@ -3,23 +3,31 @@ import logging
 
 LOG = logging.getLogger("validation")
 
+# Columnas mínimas que debe contener el dataset procesado
 REQUIRED_COLUMNS = ["survived", "pclass", "sex", "age", "sibsp", "parch", "fare"]
 
+
 def validate_schema(path="data/processed/titanic_clean.csv"):
+    """Valida esquema y reglas básicas del dataset procesado.
+
+    Lanza `ValueError` si faltan columnas o si se encuentran valores inválidos.
+    """
     df = pd.read_csv(path)
     miss = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if miss:
         LOG.error("Faltan columnas requeridas: %s", miss)
         raise ValueError(f"Faltan columnas: {miss}")
-    # Comprobaciones semánticas simples
+    # Comprobaciones semánticas: edades no negativas
     if (df["age"] < 0).any():
         LOG.error("Se encontraron edades negativas")
         raise ValueError("Se encontraron edades negativas")
+    # La columna 'survived' debe contener 0 o 1
     if not df["survived"].isin([0,1]).all():
         LOG.error("Valores inválidos en la columna 'survived'")
         raise ValueError("Valores inválidos en 'survived'")
     LOG.info("Validación satisfactoria para %s", path)
     return True
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

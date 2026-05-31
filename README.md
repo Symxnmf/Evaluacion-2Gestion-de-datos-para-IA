@@ -1,51 +1,40 @@
-# Evaluación Parcial N°2 — Pipeline DataOps
+# Evaluación Parcial N°2 — Pipeline de datos (Titanic)
 
-## Descripción corta
-Pipeline DataOps reproducible aplicado al dataset `Titanic` (ejemplo). Implementa las etapas de ingesta, limpieza y transformación, validación, carga y una demo web para mostrar KPIs.
+## Resumen
+Proyecto que implementa un pipeline reproducible para procesamiento de datos del dataset Titanic. Incluye etapas de ingesta, limpieza y transformación, validación, carga a base de datos y una pequeña demo web para visualizar KPIs.
 
-## Por qué existe este proyecto
-Este repositorio es la entrega de la Evaluación Parcial N°2 del curso de Gestión de Datos para IA. Busca demostrar un flujo de trabajo DataOps completo y ordenado, con código funcional, evidencia técnica y una demo que sirva para la defensa oral.
+## Objetivo
+Demostrar un flujo de trabajo de ingeniería de datos que permita:
+- Preparar y limpiar datos de entrada.
+- Validar la calidad y estructura del dataset.
+- Cargar los datos en una base local (SQLite) o remota (Postgres/Supabase).
+- Exponer indicadores básicos mediante una API/mini-app.
 
-## Estado actual
-- Código funcional en Python 3.11+.
-- Entorno reproducible con `requirements.txt` y `Dockerfile`.
-- Demo Flask disponible en `http://127.0.0.1:5000` con endpoints `/kpis` y `/status`.
-
-## Equipo y reparto 50/50
-| Integrante | Rol principal | Aporte |
-|---|---|---|
-| Simon | Desarrollo técnico / Data Engineer | Implementación del pipeline DataOps: ingesta, limpieza, validación, carga, pruebas funcionales y apoyo en la demo. |
-| Benja | Documentación / DevOps / Presentación | Redacción del README, plantilla del informe, organización del repositorio, apoyo en la demo y preparación de la presentación. |
-
-- Reparto general: 50% Simon y 50% Benja.
-- Ambos revisaron las partes principales para mantener coherencia técnica y de presentación.
-
-## Ramas del proyecto
-- `main` — versión integrada final con todo el proyecto junto.
-- `Simon` / `simon` — rama enfocada en la parte técnica del pipeline y la demo.
-- `Benja` / `benja` — rama enfocada en documentación, organización y presentación.
-
-## Contenido y estructura
-- `src/` — implementaciones del pipeline:
-  - `ingestion.py` — ingesta (descarga dataset de ejemplo y guarda en `data/raw`).
-  - `processing.py` — limpieza y transformaciones básicas, salida en `data/processed`.
-  - `validation.py` — validaciones estructurales y semánticas.
-  - `load.py` — carga a SQLite (`data/db/titanic.db`).
-  - `pipeline.py` — orquestador que ejecuta las etapas.
-- `app.py` — API/demo con Flask.
-- `data/` — directorios `raw`, `processed`, `db`.
-- `docs/` — plantilla de informe y recursos de entrega.
-- `tests/` — pruebas básicas con `pytest`.
+## Estructura principal
+- `src/` — código del pipeline:
+  - `ingestion.py` — descarga o lectura del dataset y guarda en `data/raw`.
+  - `processing.py` — limpieza y transformaciones; guarda resultado en `data/processed`.
+  - `validation.py` — validaciones de esquema y controles básicos.
+  - `load.py` — carga de datos en SQLite o Postgres (según variables de entorno).
+  - `pipeline.py` — orquestador que ejecuta las etapas en secuencia.
+- `app.py` — API/mini-app en Flask con endpoints para KPIs y estado de la base.
+- `data/` — carpetas `raw/`, `processed/` y `db/`.
+- `docs/` — plantilla de informe y material de entrega.
+- `tests/` — pruebas con `pytest`.
 - `Dockerfile`, `requirements.txt`, `setup_and_run.ps1` — utilidades y scripts.
 
-## Instalación rápida en Windows PowerShell
+## Requisitos
+- Python 3.11+ (funciona con Python 3.8+ en la práctica).
+- Dependencias listadas en `requirements.txt`.
+
+## Instalación rápida (Windows PowerShell)
 1. Clonar el repositorio y entrar a la carpeta:
 ```powershell
 git clone https://github.com/Symxnmf/Evaluacion-2Gestion-de-datos-para-IA.git
 cd Evaluacion-2Gestion-de-datos-para-IA
 ```
 
-2. Crear y activar el entorno virtual:
+2. Crear y activar un entorno virtual:
 ```powershell
 py -3 -m venv venv
 .\venv\Scripts\Activate.ps1
@@ -57,56 +46,45 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-4. Ejecutar el pipeline completo:
+## Uso
+- Ejecutar el pipeline completo:
 ```powershell
 python -m src.pipeline
 ```
 
-Nota: Si vas a usar una base remota (por ejemplo Supabase/Postgres), crea un archivo `.env` en la raíz con `DATABASE_URL` o `SUPABASE_URL`/`SUPABASE_KEY`. Si no existe, el pipeline creará/actualizará una base SQLite local en `data/db/titanic.db`.
-
-5. Levantar la demo:
+- Iniciar la demo web:
 ```powershell
 python app.py
 ```
 
-Luego abrir en el navegador:
-```text
-http://127.0.0.1:5000/kpis
-```
-
-## Atajo
-El archivo `setup_and_run.ps1` automatiza la creación del entorno, la instalación de dependencias y la ejecución del pipeline.
-
-## Uso con Docker
-Construir imagen:
-```powershell
-docker build -t dataops-demo:latest .
-```
-
-Ejecutar contenedor:
-```powershell
-docker run -p 5000:5000 dataops-demo:latest
-```
-
-## Endpoints de la demo
-- `GET /status` — devuelve `{ "bd_existe": true/false }`.
+La demo expone al menos los endpoints:
+- `GET /status` — indica si la base de datos está disponible.
 - `GET /kpis` — devuelve KPIs básicos: `filas_totales`, `edad_promedio`, `edad_faltante`, `tasa_supervivencia`.
 
-## Evidencias y entregables
-- `data/db/titanic.db` — base de datos generada por el pipeline.
-- `data/processed/titanic_clean.csv` — datos procesados.
-- `docs/Informe_template.md` — plantilla para completar el informe PDF.
-- `app.py` — demo web funcional.
+Si prefieres usar PostgreSQL o Supabase, define en un archivo `.env` las variables `DATABASE_URL` o `SUPABASE_URL` y `SUPABASE_KEY`.
 
-## Buenas prácticas y seguridad
-- No subir credenciales ni archivos sensibles. `venv/` ya está en `.gitignore`.
-- Para producción, usar contenedores y un servidor WSGI como `gunicorn` en lugar del servidor de desarrollo de Flask.
+## Datos
+- Datos de entrada: `data/raw/titanic.csv`.
+- Datos procesados: `data/processed/titanic_clean.csv`.
+- Base local SQLite: `data/db/titanic.db` (si no se usa backend remoto).
+
+## Scripts y utilidades
+- `setup_and_run.ps1` — script para automatizar entorno e inicio en PowerShell.
+- `Dockerfile` — imagen para ejecutar la app en contenedor.
+- `clean_supabase.sql`, `rename_columns.sql` — scripts SQL auxiliares incluidos en la raíz.
+
+## Pruebas
+Ejecutar las pruebas unitarias con `pytest`:
+```powershell
+pytest -q
+```
+
+## Buenas prácticas
+- No subir credenciales; usa `.env` para variables sensibles.
+- Para despliegue en producción, usar un servidor WSGI (por ejemplo `gunicorn`) y contenedores.
 
 ## Licencia
-Se puede publicar con licencia MIT si quieres compartir el código abierto. Añade un archivo `LICENSE` si lo necesitas.
+Puedes añadir un archivo `LICENSE` si deseas publicar el proyecto bajo MIT u otra licencia.
 
 ## Contacto
-Si quieres que personalice el informe o la presentación, puedo generarlos a partir de esta base.
-
-## Recordatorio final
-Antes de exportar a PDF, completa `docs/Informe_template.md` con portada, nombres, fechas y capturas.
+Si necesitas adaptaciones (por ejemplo cambiar la fuente de datos o añadir nuevas validaciones), abre una issue o contacta al autor del repositorio.

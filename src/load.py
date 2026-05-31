@@ -8,21 +8,25 @@ LOG = logging.getLogger("load")
 
 
 def ensure_dirs():
+    # Asegurar carpeta para base de datos local
     os.makedirs("data/db", exist_ok=True)
 
 
 def load_to_database(processed_path="data/processed/titanic_clean.csv"):
-    """Carga `processed_path` a la base indicada por `DATABASE_URL`.
+    """Carga el CSV procesado en la base configurada por variables de entorno.
 
-    Comportamiento:
-    - Si existe `DATABASE_URL` en el entorno, usa SQLAlchemy/psycopg2 para subir a Postgres.
-    - Si no existe, hace fallback a SQLite local en `data/db/titanic.db`.
+    Flujo:
+    - Si `DATABASE_URL` está definido, subir a Postgres vía SQLAlchemy.
+    - Si no, pero existen `SUPABASE_URL` y `SUPABASE_KEY`, usar REST API de Supabase.
+    - Si ninguna está presente, almacenar en SQLite local `data/db/titanic.db`.
     """
     load_dotenv()
     db_url = os.getenv("DATABASE_URL")
 
+    # Leer CSV procesado
     df = pd.read_csv(processed_path)
 
+    # Opción 1: subir a Postgres remoto usando SQLAlchemy
     if db_url:
         try:
             from sqlalchemy import create_engine
@@ -30,17 +34,18 @@ def load_to_database(processed_path="data/processed/titanic_clean.csv"):
             LOG.exception("SQLAlchemy no está disponible: %s", exc)
             raise
 
-        # Normalize postgres URL for SQLAlchemy (some providers use postgres://)
+        # Normalizar URL si el proveedor devuelve 'postgres://'
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
 
         LOG.info("Conectando a la base remota via DATABASE_URL")
         engine = create_engine(db_url)
-        # write dataframe to SQL (will create/replace table)
+        # Escribir tabla 'titanic' (reemplaza si existe)
         df.to_sql("titanic", engine, if_exists="replace", index=False)
         LOG.info("Datos cargados en la base remota (tabla: titanic)")
         return db_url
-    # If DATABASE_URL not set, but SUPABASE REST credentials exist, use REST API
+
+    # Opción 2: si están credenciales de Supabase, usar su REST para insertar filas
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
     if supabase_url and supabase_key:
@@ -50,9 +55,8 @@ def load_to_database(processed_path="data/processed/titanic_clean.csv"):
             LOG.exception("Requests no está disponible: %s", exc)
             raise
 
-        # Build REST endpoint for table 'titanic'
+        # Construir endpoint REST para la tabla 'titanic'
         rest_base = supabase_url.rstrip('/')
-        # Supabase REST endpoints usually under /rest/v1
         if rest_base.endswith('/rest/v1'):
             rest_endpoint = rest_base + '/titanic'
         else:
@@ -67,7 +71,7 @@ def load_to_database(processed_path="data/processed/titanic_clean.csv"):
 
         LOG.info("Subiendo %d filas a Supabase REST %s", len(df), rest_endpoint)
 
-        # Renombrar columnas al español antes de enviar
+        # Mapear nombres de columnas a los nombres en la tabla de Supabase (español)
         column_mapping = {
             'survived': 'sobrevivio',
             'pclass': 'clase',
@@ -83,22 +87,20 @@ def load_to_database(processed_path="data/processed/titanic_clean.csv"):
             'alone': 'solo_a',
             'class': 'categoria'
         }
-        
+
         df_renamed = df.rename(columns=column_mapping)
 
-        # Post in chunks to avoid huge payloads
-        # Replace NaN/inf with None and convert numpy types to native Python types
+        # Preparar registros: reemplazar NaN/inf por None y convertir tipos numpy
         df_clean = df_renamed.replace([np.nan, np.inf, -np.inf], None)
         records_raw = df_clean.to_dict(orient='records')
 
         def _convert_record(rec):
+            # Convertir tipos numpy a tipos nativos de Python para JSON
             new = {}
             for k, v in rec.items():
-                # convert numpy scalar types to native python
                 if isinstance(v, (np.integer, np.int64, np.int32)):
                     new[k] = int(v)
                 elif isinstance(v, (np.floating, np.float64, np.float32)):
-                    # None will remain None, floats are converted to Python float
                     new[k] = None if v is None else float(v)
                 elif isinstance(v, (np.bool_)):
                     new[k] = bool(v)
@@ -118,7 +120,7 @@ def load_to_database(processed_path="data/processed/titanic_clean.csv"):
         LOG.info("Datos cargados via Supabase REST en tabla 'titanic'")
         return rest_endpoint
     else:
-        # Fallback a sqlite local
+        # Opción 3: fallback a SQLite local
         ensure_dirs()
         db_path = os.getenv("LOCAL_SQLITE_DB", "data/db/titanic.db")
         import sqlite3
